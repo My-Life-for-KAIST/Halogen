@@ -1,5 +1,5 @@
 #pragma once
-#include "Tensor.hpp"
+#include "Core/Tensor.hpp"
 #include <vector>
 #include <algorithm>
 #include <numeric>

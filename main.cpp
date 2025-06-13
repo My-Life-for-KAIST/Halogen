@@ -1,5 +1,5 @@
 #include <iostream>
-#include "Halogen.hpp"
+#include "Halogen/Halogen.hpp"
 
 #define endl '\n';
 
