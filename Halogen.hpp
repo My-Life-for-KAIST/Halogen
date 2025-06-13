@@ -243,19 +243,6 @@ namespace Halogen {
     };
 
     Tensor<float> read_mnist_images(const std::string& path, int limit=-1){
-        ifstream ifs(path, std::ios::binary);
-        uint32_t magic, n, rows, cols;
-        ifs.read((char*)&magic,4); ifs.read((char*)&n,4);
-        ifs.read((char*)&rows,4);  ifs.read((char*)&cols,4);
-        magic = __builtin_bswap32(magic); n = __builtin_bswap32(n);
-        rows  = __builtin_bswap32(rows);  cols = __builtin_bswap32(cols);
-        if(limit>0 && limit<n) n = limit;
 
-        tiny::Tensor<float> imgs({(int)n,1,(int)rows,(int)cols});
-        for(size_t i=0;i<n*rows*cols;++i){
-            unsigned char px; ifs.read((char*)&px,1);
-            imgs.data[i] = px / 255.0f;            // 0~1 정규화
-        }
-        return imgs;
     }
 }
