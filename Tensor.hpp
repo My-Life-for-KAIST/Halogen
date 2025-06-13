@@ -3,6 +3,7 @@
 #include <numeric>
 #include <algorithm>
 #include <string>
+#include <stdexcept>
 using namespace std;
 
 namespace Halogen {
