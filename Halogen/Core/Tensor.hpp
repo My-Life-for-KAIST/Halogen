@@ -48,6 +48,7 @@ namespace Halogen {
         void recursiveDivide(Tensor& out, const Tensor& other, vector<int>& idx, int axis) const {
             if (axis == shape.size()) {
                 int of = offset(idx);
+                if(other.data[of] == 0) throw std::invalid_argument("Division by zero"); // 0으로 나누기
                 out.data[of] = data[of] / other.data[of];
                 return;
             }
@@ -164,6 +165,8 @@ namespace Halogen {
         }
         Tensor operator/(const T& scalar) {
             Tensor result(*this);
+            if(scalar == 0) throw std::invalid_argument("Division by zero"); // 0으로 나누기
+            if(scalar == 1) return result; // 1로 나누는 경우는 그냥 자기 자신을 반환
             for (auto& E: result.data) E /= scalar;
             return result;
         }
