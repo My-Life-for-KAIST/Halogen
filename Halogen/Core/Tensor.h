@@ -2,6 +2,7 @@
 #include <vector>
 #include <optional>
 #include <functional>
+#include <iostream>
 
 // Halogen's Core Library : Really Super Important Tensor Lib.
 
@@ -13,8 +14,6 @@
  *    1. non-const function must return OpTensorRef Type. ( equals to sstd::optional<std::reference_wrapper<Tensor<T>>> )
  *
  */
-
-
 namespace Halogen {
 
 
@@ -27,7 +26,71 @@ namespace Halogen {
             std::vector<T> data;
 
         public:
+            std::vector<int> shape;
             // 스태틱 메서드
+            static std::optional<Tensor> all_same(std::vector<int>& _shape, T value) {
+                if (_shape.empty()) return std::nullopt;
+                Tensor t; t.shape = std::move(_shape);
+
+                int elementCount = 1;
+                for (int v: t.shape) elementCount *= v;
+                t.data.assign(elementCount, value);
+
+                t.recompute_strides();
+                return t;
+            }
+
+            static std::optional<Tensor> zeros(std::vector<int>& shape) {
+                return all_same(shape, static_cast<T>(0));
+            }
+
+            // rvalue로 생성하는 경우
+            static std::optional<Tensor> zeros(std::vector<int> shape) {
+                return all_same(shape, static_cast<T>(0));
+            }
+
+            static std::optional<Tensor> identity(int dim, int N) {
+                if (dim <= 0 || N <= 0) return std::nullopt;
+
+                std::vector<int> _shape(dim, N);
+
+                int total = 1;
+                for (int i = 0; i < dim; ++i) total *= N;
+
+                std::vector<T> _flat(total, static_cast<T>(0));
+                const int step = (N-1 ? (total - 1) / (N-1) : 1);
+                for (int k = 0; k < N; ++k) {
+                    _flat[static_cast<size_t>(k) * step] = static_cast<T>(1);
+                }
+
+                return Tensor(std::move(_flat), std::move(_shape));
+            }
+
+            static std::optional<Tensor> arange(int stop) {
+                if (stop <= 0) return Tensor(std::vector<T>{}, std::vector<int>{0});
+
+                std::vector<int> _shape = {stop};
+                std::vector<T> _flat(stop, static_cast<T>(0));
+                for (int i = 0; i < stop; i++) _flat[i] = static_cast<T>(i);
+
+                return Tensor(std::move(_flat), std::move(_shape));
+            }
+
+            static std::optional<Tensor> arange(int start, int stop, int step = 1) {
+                if (step == 0) return std::nullopt;
+
+                if ((step > 0 && start >= stop) || (step < 0 && start <= stop)) {
+                    return Tensor(std::vector<T>{}, std::vector<int>{0});
+                }
+
+                std::vector<int> _shape = {(stop-start)/step};
+                std::vector<T> _flat((stop-start)/step, static_cast<T>(0));
+                int idx = 0;
+                for (int i = start; i < stop; i += step) _flat[idx++] = static_cast<T>(i);
+
+                return Tensor(std::move(_flat), std::move(_shape));
+            }
+
 
 
             // -- 생성자 --
@@ -35,6 +98,15 @@ namespace Halogen {
             Tensor() = default;
             Tensor(std::vector<T> flat, std::vector<int> shape_):
             data(std::move(flat)), shape(std::move(shape_)) {
+                strides.assign(shape.size(), 0);
+                int acc = 1;
+                for (int d = shape.size() - 1; d >= 0; --d) {
+                    strides[d] = acc;
+                    acc *= shape[d];
+                }
+            }
+
+            void recompute_strides() {
                 strides.assign(shape.size(), 0);
                 int acc = 1;
                 for (int d = shape.size() - 1; d >= 0; --d) {
@@ -55,8 +127,97 @@ namespace Halogen {
                 return data[offset(idx)];
             }
 
+            Tensor operator-() {
+                Tensor res = *this;
+                res.map([] (T& v) {
+                    v *= -1;
+                });
+                return res;
+            }
+
+            Tensor operator+(T& other) {
+                Tensor res = *this;
+                res.map([other] (T& v) {
+                    v += other;
+                });
+                return res;
+            }
+
+            Tensor operator-(T& other) {
+                Tensor res = *this;
+                res.map([other] (T& v) {
+                    v -= other;
+                });
+                return res;
+            }
+
+            Tensor operator*(T& other) {
+                Tensor res = *this;
+                res.map([other] (T& v) {
+                    v *= other;
+                });
+                return res;
+            }
+
+            OpTensorRef add(int other) {
+                for (auto& v : data) v += static_cast<T>(other);
+                return *this;
+            }
+
+            OpTensorRef add(const Tensor& other) {
+                if (size() != other.size()) return std::nullopt;
+                for (int i = 0; i < size(); ++i) data[i] += other.data[i];
+                return *this;
+            }
+
+            OpTensorRef sub(int other) {
+                for (auto& v : data) v -= static_cast<T>(other);
+                return *this;
+            }
+
+            OpTensorRef sub(const Tensor& other) {
+                if (size() != other.size()) return std::nullopt;
+                for (int i = 0; i < size(); ++i) data[i] -= other.data[i];
+                return *this;
+            }
+
+            OpTensorRef mul(int other) {
+                for (auto& v : data) v *= static_cast<T>(other);
+                return *this;
+            }
+
+            OpTensorRef mul(const Tensor& other) {
+                if (size() != other.size()) return std::nullopt;
+                for (int i = 0; i < size(); ++i) data[i] *= static_cast<T>(other.data[i]);
+                return *this;
+            }
+
+            OpTensorRef matmul(const Tensor& other) {
+                if (ndim() != 2 || other.ndim() != 2) return std::nullopt;
+
+                const int m = shape[0];
+                const int n = other.shape[1];
+                if (shape[1] != other.shape[0]) return std::nullopt; // (m×k) * (k×n)
+
+                std::vector<T> out(m * n, T{});
+
+                for (int i = 0; i < m; i++) {
+                    const int a_row = i * shape[1];
+                    for (int j = 0; j < n; j++) {
+                        T acc{};
+                        for (int t = 0; t < shape[1]; ++t) acc += data[a_row + t] * other.data[t*n + j];
+                        out[i*n + j] = acc;
+                    }
+                }
+
+                // this 업데이트
+                data = std::move(out);
+                shape = {m, n};
+                recompute_strides();
+                return *this;
+            }
+
             // -- 기본적 텐서 속성 --
-            std::vector<int> shape;
 
             [[nodiscard]] int ndim() const {
                 return shape.size();
@@ -127,12 +288,7 @@ namespace Halogen {
                 if (elementCount != data.size()) return std::nullopt;
 
                 shape = newShape;
-                strides.assign(shape.size(), 0);
-                int acc = 1;
-                for (int d = shape.size() - 1; d >= 0; --d) {
-                    strides[d] = acc;
-                    acc *= shape[d];
-                }
+                recompute_strides();
                 return *this;
             }
 
@@ -141,7 +297,7 @@ namespace Halogen {
                 @brief 요소에 일괄적으로 연산 적용
                 @param func 각 요소에 적용할 함수 (텐서의 한 요소를 매개변수로 받고 결과값을 리턴)
              **/
-            OpTensorRef apply(std::function<T(T)> func) {
+            OpTensorRef apply(std::function<T(T)>& func) {
                 for (auto &t: data) {
                     t = func(t);
                 }
@@ -181,5 +337,7 @@ namespace Halogen {
                 }
                 return false;
             }
+
+
     };
 }
