@@ -11,7 +11,7 @@
  * Thank you for using and contributing to Halogen Library.
  * While Contributing, using CLion(by Jetbrains) is "strongly" recommended.
  * I. Before Contributing
- *    1. non-const function must return OpTensorRef Type. ( equals to sstd::optional<std::reference_wrapper<Tensor<T>>> )
+ *    1. non-const function must return OpTensorRef Type. ( equals to std::optional<std::reference_wrapper<Tensor<T>>> )
  *
  */
 namespace Halogen {
