@@ -265,7 +265,7 @@ namespace Halogen {
                 // range check
                 if (idx.size() != shape.size()) return std::nullopt;
                 for (int i = 0; i < shape.size(); i++) {
-                    if (idx[i] >= shape.size() || idx[i] < 0) {
+                    if (idx[i] >= shape[i] || idx[i] < 0) {
                         return std::nullopt;
                     }
                 }
